@@ -1,0 +1,91 @@
+CREATE TABLE users (
+ id UUID PRIMARY KEY, google_subject VARCHAR(255) NOT NULL UNIQUE,
+ display_name VARCHAR(200) NOT NULL, email VARCHAR(320), avatar_url TEXT,
+ created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ authenticated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ epoch BIGINT NOT NULL DEFAULT 0, revision BIGINT NOT NULL DEFAULT 0,
+ deleted_at TIMESTAMP WITH TIME ZONE
+);
+CREATE TABLE auth_challenges (
+ id UUID PRIMARY KEY, nonce_hash VARCHAR(64) NOT NULL,
+ expires_at TIMESTAMP WITH TIME ZONE NOT NULL, consumed BOOLEAN NOT NULL DEFAULT FALSE
+);
+CREATE TABLE device_sessions (
+ id UUID PRIMARY KEY, user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+ device_id UUID NOT NULL, access_hash VARCHAR(64) NOT NULL UNIQUE,
+ refresh_hash VARCHAR(64) NOT NULL UNIQUE, previous_refresh_hash VARCHAR(64),
+ refresh_request_id UUID, rotated_at TIMESTAMP WITH TIME ZONE,
+ access_expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+ refresh_expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+ absolute_expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+ authenticated_at TIMESTAMP WITH TIME ZONE NOT NULL,
+ created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ revoked BOOLEAN NOT NULL DEFAULT FALSE
+);
+CREATE INDEX sessions_user ON device_sessions(user_id);
+CREATE INDEX sessions_previous_refresh ON device_sessions(previous_refresh_hash);
+CREATE TABLE level_progress (
+ user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+ level_id INT NOT NULL CHECK(level_id BETWEEN 1 AND 1000),
+ stars INT NOT NULL CHECK(stars BETWEEN 0 AND 3),
+ PRIMARY KEY(user_id,level_id)
+);
+CREATE TABLE level_unlocks (
+ user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+ level_id INT NOT NULL CHECK(level_id BETWEEN 1 AND 1000),
+ PRIMARY KEY(user_id,level_id)
+);
+CREATE TABLE level_attempts (
+ user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+ level_id INT NOT NULL CHECK(level_id BETWEEN 1 AND 1000),
+ device_id UUID NOT NULL, run_id UUID NOT NULL,
+ content_version VARCHAR(100) NOT NULL,
+ checkpoint BIGINT NOT NULL, state JSONB NOT NULL, closed BOOLEAN NOT NULL DEFAULT FALSE,
+ updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ PRIMARY KEY(user_id,level_id,device_id,run_id)
+);
+CREATE TABLE user_preferences (
+ user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+ state JSONB NOT NULL DEFAULT '{}'
+);
+CREATE TABLE sync_operations (
+ user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+ operation_id UUID NOT NULL, payload_hash VARCHAR(64) NOT NULL,
+ revision BIGINT NOT NULL, epoch BIGINT NOT NULL,
+ created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ PRIMARY KEY(user_id,operation_id)
+);
+CREATE TABLE migration_imports (
+ guest_id UUID PRIMARY KEY, user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+ operation_id UUID NOT NULL, imported_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE hint_wallets (
+ user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+ unallocated INT NOT NULL DEFAULT 0 CHECK(unallocated>=0), imported BOOLEAN NOT NULL DEFAULT FALSE
+);
+CREATE TABLE device_hint_allocations (
+ user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+ device_id UUID NOT NULL, allocated INT NOT NULL DEFAULT 0 CHECK(allocated>=0),
+ spent INT NOT NULL DEFAULT 0 CHECK(spent>=0 AND spent<=allocated),
+ PRIMARY KEY(user_id,device_id)
+);
+CREATE TABLE hint_events (
+ user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+ event_id UUID NOT NULL, device_id UUID NOT NULL,
+ delta INT NOT NULL, reason VARCHAR(40) NOT NULL,
+ created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ PRIMARY KEY(user_id,event_id)
+);
+CREATE TABLE reward_intents (
+ id UUID PRIMARY KEY, user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+ device_id UUID NOT NULL, level_id INT, run_id UUID,
+ kind VARCHAR(24) NOT NULL, grant_amount INT NOT NULL,
+ expires_at TIMESTAMP WITH TIME ZONE NOT NULL, earned BOOLEAN NOT NULL DEFAULT FALSE
+);
+CREATE TABLE reward_receipts (
+ transaction_id VARCHAR(255) PRIMARY KEY, intent_id UUID NOT NULL REFERENCES reward_intents(id) ON DELETE CASCADE,
+ received_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE request_limits (
+ bucket VARCHAR(100) PRIMARY KEY, window_start BIGINT NOT NULL, requests INT NOT NULL
+);

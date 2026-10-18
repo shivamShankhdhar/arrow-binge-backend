@@ -1,0 +1,33 @@
+package arrow.binge.arrow_binge_backend;
+import org.springframework.context.annotation.*;import org.springframework.security.config.annotation.web.builders.HttpSecurity;import org.springframework.security.web.SecurityFilterChain;import org.springframework.security.config.http.SessionCreationPolicy;import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.filter.OncePerRequestFilter;import jakarta.servlet.*;import jakarta.servlet.http.*;import java.io.IOException;
+@Configuration
+public class SecurityConfiguration {
+ @Bean org.springframework.security.core.userdetails.UserDetailsService noPasswordLogin(){return username->{throw new org.springframework.security.core.userdetails.UsernameNotFoundException("Password login is disabled");};}
+ @Bean SecurityFilterChain chain(HttpSecurity http,AuthService auth,org.springframework.jdbc.core.JdbcTemplate db)throws Exception{
+  return http.csrf(c->c.disable()).sessionManagement(s->s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+   .authorizeHttpRequests(a->a.anyRequest().permitAll()).addFilterBefore(new OncePerRequestFilter(){
+    protected void doFilterInternal(HttpServletRequest req,HttpServletResponse res,FilterChain next)throws ServletException,IOException{
+     try{
+      if(req.getContentLengthLong()>4194304)throw new ApiException(413,"REQUEST_TOO_LARGE");
+      String path=req.getRequestURI();
+      if(path.startsWith("/v1/")){
+       boolean publicAuth=path.equals("/v1/auth/challenge")||path.equals("/v1/auth/google")||path.equals("/v1/auth/refresh");
+       if(publicAuth){String bucket=Crypto.hash(req.getRemoteAddr());long window=System.currentTimeMillis()/60000;
+        db.update("INSERT INTO request_limits(bucket,window_start,requests) VALUES(?,?,1) ON CONFLICT(bucket) DO UPDATE SET requests=CASE WHEN request_limits.window_start=EXCLUDED.window_start THEN request_limits.requests+1 ELSE 1 END,window_start=EXCLUDED.window_start",bucket,window);
+        if(db.queryForObject("SELECT requests FROM request_limits WHERE bucket=?",Integer.class,bucket)>30)throw new ApiException(429,"RATE_LIMITED");
+       }else if(!path.equals("/v1/rewards/admob/callback")){
+        String header=req.getHeader("Authorization");if(header==null||!header.startsWith("Bearer "))throw new ApiException(401,"SIGN_IN_REQUIRED");
+        var principal=auth.authenticate(header.substring(7));
+        req.setAttribute("principal",principal);
+        String bucket="user:"+principal.userId();long window=System.currentTimeMillis()/60000;
+        db.update("INSERT INTO request_limits(bucket,window_start,requests) VALUES(?,?,1) ON CONFLICT(bucket) DO UPDATE SET requests=CASE WHEN request_limits.window_start=EXCLUDED.window_start THEN request_limits.requests+1 ELSE 1 END,window_start=EXCLUDED.window_start",bucket,window);
+        if(db.queryForObject("SELECT requests FROM request_limits WHERE bucket=?",Integer.class,bucket)>120)throw new ApiException(429,"RATE_LIMITED");
+       }
+      }
+      next.doFilter(new BoundedRequest(req),res);
+     }catch(ApiException e){res.setStatus(e.status);res.setContentType("application/json");res.getWriter().write(Json.write(java.util.Map.of("code",e.code)));}
+    }
+   },UsernamePasswordAuthenticationFilter.class).build();
+ }
+}
