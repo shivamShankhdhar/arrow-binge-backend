@@ -21,9 +21,11 @@ public class RootController {
         return Map.of(
             "status", "UP",
             "service", "arrow-binge-backend",
-            "version", Catalog.VERSION
+            "version", Catalog.VERSION,
+            "timestamp", java.time.Instant.now().toString()
         );
     }
+
 
     @GetMapping("/health")
     public Map<String, Object> health() {
