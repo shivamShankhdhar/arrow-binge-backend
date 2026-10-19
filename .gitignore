@@ -36,3 +36,4 @@ build/
 !.env.example
 *.log
 .local/
+.DS_Store

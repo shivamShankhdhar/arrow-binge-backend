@@ -19,6 +19,7 @@ public class ApiController {
  @GetMapping("/save") public Object save(@RequestAttribute("principal") AuthService.Principal p){return saves.read(p);}
  @PostMapping("/save/sync") public Object sync(@RequestAttribute("principal") AuthService.Principal p,@RequestBody SaveService.Snapshot snapshot){return saves.sync(p,snapshot);}
  @PostMapping("/save/reset") public Object reset(@RequestAttribute("principal") AuthService.Principal p,@RequestBody Reset r){auth.recent(p);return saves.reset(p,r.epoch());}
- @GetMapping("/me/export") public Object export(@RequestAttribute("principal") AuthService.Principal p){auth.recent(p);return Map.of("profile",auth.profile(p.userId()),"save",saves.read(p),"sessions",auth.sessions(p));}
+ @GetMapping("/me/export") public Object export(@RequestAttribute("principal") AuthService.Principal p){auth.recent(p);return Map.of("profile",auth.profile(p.userId()),"save",saves.read(p),"sessions",auth.sessions(p),"leaderboard",leaderboardExport(p));}
  @DeleteMapping("/me") public Object delete(@RequestAttribute("principal") AuthService.Principal p){auth.delete(p);return Map.of("ok",true);}
+ private Object leaderboardExport(AuthService.Principal p) {return java.util.Map.of("profile",saves.leaderboardProfile(p));}
 }

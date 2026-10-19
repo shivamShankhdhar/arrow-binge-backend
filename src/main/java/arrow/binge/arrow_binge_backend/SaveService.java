@@ -5,19 +5,20 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.*;
 @Service
 public class SaveService {
- private final JdbcTemplate db;private final Catalog catalog;
- public SaveService(JdbcTemplate db,Catalog catalog){this.db=db;this.catalog=catalog;}
+ private final JdbcTemplate db;private final Catalog catalog;private final LeaderboardService leaderboard;
+ public SaveService(JdbcTemplate db,Catalog catalog,LeaderboardService leaderboard){this.db=db;this.catalog=catalog;this.leaderboard=leaderboard;}
  public record Level(int id,int stars){}
  public record Attempt(int levelId,UUID runId,long checkpoint,String contentVersion,List<Integer> pulledIds,int lives,int mistakes,List<Integer> wrongIds,boolean usedRevive,boolean closed){}
  public record Snapshot(UUID operationId,long epoch,UUID guestId,List<Level> levels,Set<Integer> unlocked,List<Attempt> attempts,int lastPlayed,boolean sound,boolean haptics){}
+ public Object leaderboardProfile(AuthService.Principal p){Object me=leaderboard.read(p).get("me");return me==null?Map.of():me;}
  void validate(Snapshot s){
   if(s==null||s.operationId()==null||s.epoch()<0||s.levels()==null||s.levels().size()>1000||s.unlocked()==null||s.unlocked().size()>1000||s.attempts()==null||s.attempts().size()>2000)throw new ApiException(400,"INVALID_SAVE");
   catalog.count(s.lastPlayed());Set<Integer> ids=new HashSet<>();
   for(var l:s.levels()){if(l==null||!ids.add(l.id())||l.stars()<0||l.stars()>3)throw new ApiException(400,"INVALID_STARS");catalog.count(l.id());}
   for(int id:s.unlocked())catalog.count(id);
   Set<String> runs=new HashSet<>();for(var a:s.attempts()){
-   if(a==null||a.runId()==null||a.checkpoint()<0||!runs.add(a.levelId()+":"+a.runId())||!Catalog.VERSION.equals(a.contentVersion())||a.lives()<0||a.lives()>5||a.mistakes()<0||a.mistakes()>10000||a.pulledIds()==null||a.wrongIds()==null)throw new ApiException(400,"INVALID_ATTEMPT");
-   int count=catalog.count(a.levelId());
+   if(a==null||a.runId()==null||a.checkpoint()<0||!runs.add(a.levelId()+":"+a.runId())||a.lives()<0||a.lives()>5||a.mistakes()<0||a.mistakes()>10000||a.pulledIds()==null||a.wrongIds()==null)throw new ApiException(400,"INVALID_ATTEMPT");
+   int count=catalog.count(a.levelId(),a.contentVersion());
    if(a.pulledIds().size()>count||a.wrongIds().size()>count||a.pulledIds().stream().anyMatch(i->i==null||i<0||i>=count)||a.wrongIds().stream().anyMatch(i->i==null||i<0||i>=count))throw new ApiException(400,"INVALID_ARROW");
   }
  }
@@ -46,6 +47,7 @@ public class SaveService {
   long revision=((Number)owner.get("revision")).longValue()+1;
   db.update("UPDATE users SET revision=? WHERE id=?",revision,user);
   db.update("INSERT INTO sync_operations(user_id,operation_id,payload_hash,revision,epoch) VALUES(?,?,?,?,?)",user,s.operationId(),payload,revision,epoch);
+  leaderboard.updateScore(user);
   return read(p);
  }
  @Transactional(readOnly=true,isolation=org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
@@ -62,6 +64,6 @@ public class SaveService {
   long epoch=db.queryForObject("SELECT epoch FROM users WHERE id=? FOR UPDATE",Long.class,p.userId());
   if(epoch!=expectedEpoch)throw new ApiException(409,"SAVE_RESET_REQUIRED");
   for(String table:List.of("level_progress","level_unlocks","level_attempts","user_preferences"))db.update("DELETE FROM "+table+" WHERE user_id=?",p.userId());
-  db.update("UPDATE users SET epoch=epoch+1,revision=revision+1 WHERE id=?",p.userId());return read(p);
+  db.update("UPDATE users SET epoch=epoch+1,revision=revision+1 WHERE id=?",p.userId());leaderboard.updateScore(p.userId());return read(p);
  }
 }

@@ -10,7 +10,7 @@ import java.util.*;
 @org.springframework.test.context.ActiveProfiles("test")
 @SpringBootTest(webEnvironment=SpringBootTest.WebEnvironment.RANDOM_PORT,properties={"app.session-secret=local-test-only-secret-at-least-32-characters"})
 class CloudSaveIntegrationTest {
- @Autowired AuthService auth;@Autowired SaveService saves;@Autowired JdbcTemplate db;
+ @Autowired LeaderboardService leaderboard;@Autowired AuthService auth;@Autowired SaveService saves;@Autowired JdbcTemplate db;
  @MockitoBean GoogleIdentity google;
  @BeforeEach void setup(){db.execute("TRUNCATE users,auth_challenges CASCADE");when(google.verify(anyString(),anyString())).thenAnswer(a->new GoogleIdentity.Identity(a.getArgument(0),"Player","player@example.test",null));}
  Map<String,Object> login(String subject){var challenge=auth.challenge();return auth.login((UUID)challenge.get("challengeId"),subject,UUID.randomUUID());}
@@ -33,5 +33,51 @@ class CloudSaveIntegrationTest {
   var denied=http.send(java.net.http.HttpRequest.newBuilder(java.net.URI.create("http://127.0.0.1:"+port+"/v1/save")).GET().build(),java.net.http.HttpResponse.BodyHandlers.ofString());assertEquals(401,denied.statusCode());
   var session=login("http-user");
   var allowed=http.send(java.net.http.HttpRequest.newBuilder(java.net.URI.create("http://127.0.0.1:"+port+"/v1/save")).header("Authorization","Bearer "+session.get("accessToken")).GET().build(),java.net.http.HttpResponse.BodyHandlers.ofString());assertEquals(200,allowed.statusCode());assertTrue(allowed.body().contains("discovery-v3"));
+ }
+
+ @Test void leaderboardIsOptInAndContainsNoPrivateGoogleDetails() {
+  var a=principal("private-subject");saves.sync(a,snapshot(UUID.randomUUID(),0,null,3));
+  assertEquals(0,((List<?>)leaderboard.read(a).get("entries")).size());
+  var joined=leaderboard.join(a,"Explorer Seven");
+  String json=Json.write(joined);assertTrue(json.contains("Explorer Seven"));
+  assertFalse(json.contains("player@example.test"));assertFalse(json.contains("private-subject"));
+  assertEquals(3,((Map<?,?>)joined.get("me")).get("stars"));
+ }
+ @Test void leaderboardUpdatesOnCompletionWithoutDuplicatePointsAndResetDropsScore() {
+  var a=principal("a");leaderboard.join(a,"Explorer");
+  var request=snapshot(UUID.randomUUID(),0,null,3);saves.sync(a,request);saves.sync(a,request);
+  assertEquals(3,((Map<?,?>)leaderboard.read(a).get("me")).get("stars"));
+  saves.reset(a,0);assertEquals(0,((Map<?,?>)leaderboard.read(a).get("me")).get("stars"));
+ }
+ @Test void tiedPlayersShareRankAndBetterScoreChangesLeader() {
+  var a=principal("a");var b=principal("b");leaderboard.join(a,"Alpha");leaderboard.join(b,"Beta");
+  saves.sync(a,snapshot(UUID.randomUUID(),0,null,2));saves.sync(b,snapshot(UUID.randomUUID(),0,null,2));
+  assertEquals(1L,((Map<?,?>)leaderboard.read(a).get("me")).get("rank"));
+  assertEquals(1L,((Map<?,?>)leaderboard.read(b).get("me")).get("rank"));
+  saves.sync(b,snapshot(UUID.randomUUID(),0,null,3));
+  assertEquals(2L,((Map<?,?>)leaderboard.read(a).get("me")).get("rank"));
+  assertEquals(1L,((Map<?,?>)leaderboard.read(b).get("me")).get("rank"));
+ }
+ @Test void leavingRankingsPreservesProgressAndDeletionRemovesPublicEntry() {
+  var a=principal("a");leaderboard.join(a,"Alpha");saves.sync(a,snapshot(UUID.randomUUID(),0,null,3));
+  leaderboard.leave(a);assertNull(leaderboard.read(a).get("me"));
+  assertEquals(1,((List<?>)saves.read(a).get("levels")).size());
+  leaderboard.join(a,"Alpha");auth.delete(a);
+  assertEquals(0,db.queryForObject("SELECT count(*) FROM leaderboard_profiles",Integer.class));
+ }
+ @Test void invalidPublicNamesAreRejected() {
+  var a=principal("a");assertThrows(ApiException.class,()->leaderboard.join(a,"<script>"));
+  assertThrows(ApiException.class,()->leaderboard.join(a,"x"));
+  assertThrows(ApiException.class,()->leaderboard.join(a,"a".repeat(25)));
+ }
+ @Test void ownRankIsReturnedOutsideTopFifty() {
+  var last=principal("last");leaderboard.join(last,"My Explorer");
+  for(int i=0;i<55;i++){
+   UUID id=UUID.randomUUID();
+   db.update("INSERT INTO users(id,google_subject,display_name) VALUES(?,?,?)",id,"filler"+i,"Private");
+   db.update("INSERT INTO leaderboard_profiles(user_id,nickname,stars,completed) VALUES(?,?,?,?)",id,"Explorer "+i,3,1);
+  }
+  var result=leaderboard.read(last);assertEquals(50,((List<?>)result.get("entries")).size());
+  assertEquals(56L,((Map<?,?>)result.get("me")).get("rank"));
  }
 }

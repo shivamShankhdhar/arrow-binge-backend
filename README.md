@@ -44,5 +44,43 @@ Tests mock Google identity verification but exercise PostgreSQL migrations, tran
 
 The Android implementation status document in `arrow-binge/docs/backend/IMPLEMENTATION_STATUS.md` records the complete remaining rollout list. Wallet/reward tables are reserved only: cloud hint allocation and AdMob SSV are not yet enabled; client reward callbacks cannot credit cloud balances. Keep hints device-local until this is implemented and validated. Production still needs privacy/deletion web pages, data-retention decisions, TLS ingress/body/rate limits, backup/restore drills, maintenance cleanup, monitoring and staging OAuth tests.
 
-The service does not contact the supplied hosted database during local automated validation. Do not deploy or run a production migration as part of a unit test invocation.
-# arrow-binge-backend
+## Deploy to Vercel (Container Runtime)
+
+This backend runs on Vercel as a serverless function via Vercel's **Container Runtime** using `Dockerfile.vercel` and `vercel.json`.
+
+### 1. Prerequisites
+- A Vercel account (Hobby or Pro).
+- A hosted PostgreSQL instance (e.g. Neon, Supabase, or AWS RDS).
+- Google OAuth credentials configured for Android and Web.
+
+### 2. Configure Environment Variables in Vercel
+Add the following in your Vercel Project Settings (**Settings > Environment Variables**):
+
+| Variable | Description | Example / Note |
+|---|---|---|
+| `DATABASE_URL` | *(Recommended)* Single connection string | `postgresql://neondb_owner:password@host/neondb?sslmode=require` (auto-parsed into JDBC URL, user, pass) |
+| `DB_URL` | JDBC URL for PostgreSQL (if not using DATABASE_URL) | `jdbc:postgresql://<host>:5432/<db>?sslmode=require` |
+| `DB_USERNAME` | Database username | E.g. `neondb_owner` |
+| `DB_PASSWORD` | Database password | Secret database password |
+| `GOOGLE_WEB_CLIENT_ID` | Web OAuth Client ID | Server audience matching Android client |
+| `GOOGLE_ANDROID_CLIENT_IDS` | Allowed Android Client IDs | Comma-separated package client IDs |
+| `SESSION_SECRET` | 32+ character random secret | Session token derivation secret |
+| `PUBLIC_URL` | Deployed Vercel URL | `https://your-project.vercel.app` |
+| `CRON_SECRET` | (Optional) Secret for cron cleanup | Vercel Cron sends `Authorization: Bearer <CRON_SECRET>` |
+
+
+### 3. Deploy
+- **Via Vercel Web Dashboard**: Connect the Git repository containing `arrow-binge-backend` (set the root directory to `arrow-binge-backend` if deploying from a monorepo). Vercel detects `Dockerfile.vercel` and builds the OCI container image automatically.
+- **Via Vercel CLI**:
+  ```bash
+  npm i -g vercel
+  cd arrow-binge-backend
+  vercel
+  vercel --prod
+  ```
+
+### 4. Verification
+After deployment, verify the endpoints:
+- `GET https://your-project.vercel.app/` -> returns `{"status":"UP","service":"arrow-binge-backend","version":"discovery-v3"}`
+- `GET https://your-project.vercel.app/health` -> returns `{"status":"UP"}`
+- `POST https://your-project.vercel.app/v1/auth/challenge` -> returns `{"challengeId":"...","nonce":"..."}`

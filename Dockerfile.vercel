@@ -1,0 +1,29 @@
+# Multi-stage build for Vercel Container Runtime
+FROM maven:3.9-eclipse-temurin-17 AS build
+WORKDIR /app
+
+# Cache dependencies
+COPY pom.xml .
+RUN mvn -B dependency:go-offline || true
+
+# Copy source code and build jar
+COPY src ./src
+RUN mvn -B clean package -DskipTests
+
+# Stage 2: Minimal production runtime
+FROM eclipse-temurin:17-jre
+WORKDIR /app
+
+COPY --from=build /app/target/arrow-binge-backend-0.0.1-SNAPSHOT.jar app.jar
+
+# Vercel routes traffic to port 80 by default, or injects $PORT
+ENV PORT=80
+EXPOSE 80
+EXPOSE 8080
+
+# Optimized JVM flags for serverless container execution:
+# - XX:+UseContainerSupport: respects container memory limits
+# - XX:MaxRAMPercentage=75.0: caps heap to 75% container memory
+# - XX:+UseSerialGC: minimal GC footprint
+# - Xss512k: lower thread stack memory
+ENTRYPOINT ["sh", "-c", "java -XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -XX:+UseSerialGC -Xss512k -Djava.security.egd=file:/dev/./urandom -Dserver.port=${PORT:-80} -jar app.jar"]
