@@ -45,3 +45,4 @@ Tests mock Google identity verification but exercise PostgreSQL migrations, tran
 The Android implementation status document in `arrow-binge/docs/backend/IMPLEMENTATION_STATUS.md` records the complete remaining rollout list. Wallet/reward tables are reserved only: cloud hint allocation and AdMob SSV are not yet enabled; client reward callbacks cannot credit cloud balances. Keep hints device-local until this is implemented and validated. Production still needs privacy/deletion web pages, data-retention decisions, TLS ingress/body/rate limits, backup/restore drills, maintenance cleanup, monitoring and staging OAuth tests.
 
 The service does not contact the supplied hosted database during local automated validation. Do not deploy or run a production migration as part of a unit test invocation.
+# arrow-binge-backend
