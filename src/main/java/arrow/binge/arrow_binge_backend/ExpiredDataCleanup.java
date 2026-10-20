@@ -9,6 +9,7 @@ public class ExpiredDataCleanup {
  public ExpiredDataCleanup(JdbcTemplate db){this.db=db;}
  @Scheduled(fixedDelay=3600000,initialDelay=3600000)
  public void clean(){
+  db.update("DELETE FROM event_runs WHERE expires_at<CURRENT_TIMESTAMP - INTERVAL '7 days'");
   db.update("DELETE FROM auth_challenges WHERE expires_at<CURRENT_TIMESTAMP");
   db.update("DELETE FROM request_limits WHERE window_start<?",System.currentTimeMillis()/60000-60);
   db.update("DELETE FROM device_sessions WHERE absolute_expires_at<CURRENT_TIMESTAMP OR refresh_expires_at<CURRENT_TIMESTAMP");

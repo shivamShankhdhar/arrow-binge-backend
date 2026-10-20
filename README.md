@@ -84,3 +84,11 @@ After deployment, verify the endpoints:
 - `GET https://your-project.vercel.app/` -> returns `{"status":"UP","service":"arrow-binge-backend","version":"discovery-v3"}`
 - `GET https://your-project.vercel.app/health` -> returns `{"status":"UP"}`
 - `POST https://your-project.vercel.app/v1/auth/challenge` -> returns `{"challengeId":"...","nonce":"..."}`
+
+## Daily challenges and weekly tournaments
+
+Flyway V3 adds isolated event tickets, daily completions, tournament profiles and per-board score receipts. `GET /v1/events` is public. Authenticated routes are `GET /v1/events/me`, `PUT/DELETE /v1/events/tournament`, `POST /v1/events/runs`, and `POST /v1/events/runs/{id}/finish`. Join with `{ "nickname": "Puzzle Fox" }`; start with `{ "mode": "tournament" }` or `{ "mode": "daily", "day": "2026-10-19" }`; finish with `{ "pulledIds": [0,1,2,3] }` matching the issued board's full catalog ID range.
+
+All dates and cutoffs use UTC; weeks reset Monday. The server selects the board and rejects incomplete, foreign, future-day or expired submissions. Tournament score is 1 point per arrow on each fully completed board, once per player/week/board; retries are idempotent and ties share ranks. Scores are client-reported completion receipts, not server-replayed puzzle solutions or prize-grade anti-cheat. A pending tournament result must reach the API before the week's end to count. Export includes event history and account deletion cascades all event records.
+
+`GET /v1/auth/config` exposes the non-secret web OAuth audience to prevent stale app/server client-ID mismatches. Google signature, issuer, audience, expiry, subject and challenge nonce remain required. Additional Android `azp` restriction is applied when actual Android OAuth client IDs are configured; a missing list or a list containing only the web client ID no longer rejects valid Android presenters. Register the package/signing certificates in Google Cloud and use the same project's web client audience. Detailed UI/rollout/test notes are in the app repository's `docs/events/README.md`.

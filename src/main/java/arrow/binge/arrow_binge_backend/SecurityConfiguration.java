@@ -36,7 +36,7 @@ public class SecurityConfiguration {
       if(req.getContentLengthLong()>4194304)throw new ApiException(413,"REQUEST_TOO_LARGE");
       String path=req.getRequestURI();
       if(path.startsWith("/v1/")){
-       boolean publicAuth=path.equals("/v1/auth/challenge")||path.equals("/v1/auth/google")||path.equals("/v1/auth/refresh");
+       boolean publicAuth=path.equals("/v1/auth/challenge")||path.equals("/v1/auth/google")||path.equals("/v1/auth/refresh")||("GET".equals(req.getMethod())&&(path.equals("/v1/events")||path.equals("/v1/events/tournament/standings")||path.equals("/v1/auth/config")));
        if(publicAuth){String bucket=Crypto.hash(clientIp(req));long window=System.currentTimeMillis()/60000;
         db.update("INSERT INTO request_limits(bucket,window_start,requests) VALUES(?,?,1) ON CONFLICT(bucket) DO UPDATE SET requests=CASE WHEN request_limits.window_start=EXCLUDED.window_start THEN request_limits.requests+1 ELSE 1 END,window_start=EXCLUDED.window_start",bucket,window);
         if(db.queryForObject("SELECT requests FROM request_limits WHERE bucket=?",Integer.class,bucket)>30)throw new ApiException(429,"RATE_LIMITED");
