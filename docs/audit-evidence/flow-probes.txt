@@ -1,0 +1,4 @@
+ticket reused=true; returned expiry exceeds stored expiry seconds=86340
+null unlock validation exception=NullPointerException
+blank-secret cleanup with no authorization accepted=true; expired challenge deleted=true
+public schedule created synthetic users=30; synthetic users total=30

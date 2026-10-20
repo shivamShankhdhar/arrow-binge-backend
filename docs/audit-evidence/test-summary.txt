@@ -1,0 +1,9 @@
+Suite | Tests | Failures | Errors | Skipped
+arrow.binge.arrow_binge_backend.ArrowBingeBackendApplicationTests | 1 | 0 | 0 | 0
+arrow.binge.arrow_binge_backend.CatalogRevisionTest | 1 | 0 | 0 | 0
+arrow.binge.arrow_binge_backend.CloudSaveIntegrationTest | 16 | 0 | 0 | 0
+arrow.binge.arrow_binge_backend.DatabaseEnvironmentPostProcessorTest | 1 | 0 | 0 | 0
+arrow.binge.arrow_binge_backend.DatabaseUrlParserTest | 3 | 0 | 0 | 0
+arrow.binge.arrow_binge_backend.EventIntegrationTest | 6 | 1 | 0 | 0
+arrow.binge.arrow_binge_backend.GoogleIdentityTest | 4 | 0 | 0 | 0
+arrow.binge.arrow_binge_backend.RootControllerTest | 2 | 0 | 0 | 0

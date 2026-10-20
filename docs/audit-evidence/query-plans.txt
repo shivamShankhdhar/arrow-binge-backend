@@ -1,0 +1,76 @@
+BEGIN
+INSERT 0 100000
+INSERT 0 100000
+INSERT 0 100000
+ANALYZE
+ANALYZE
+TOP_50
+                                                                          QUERY PLAN                                                                          
+--------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.42..4.74 rows=50 width=45) (actual time=0.005..0.030 rows=50 loops=1)
+   Buffers: shared hit=53
+   ->  Index Scan using leaderboard_score_order on leaderboard_profiles  (cost=0.42..8640.32 rows=100000 width=45) (actual time=0.004..0.027 rows=50 loops=1)
+         Buffers: shared hit=53
+ Planning:
+   Buffers: shared hit=42
+ Planning Time: 0.161 ms
+ Execution Time: 0.035 ms
+(8 rows)
+
+OWN_RANK_LOW_SCORE
+                                                          QUERY PLAN                                                           
+-------------------------------------------------------------------------------------------------------------------------------
+ Aggregate  (cost=2684.83..2684.84 rows=1 width=8) (actual time=7.440..7.441 rows=1 loops=1)
+   Buffers: shared hit=935
+   ->  Seq Scan on leaderboard_profiles  (cost=0.00..2435.00 rows=99932 width=0) (actual time=0.005..5.093 rows=99966 loops=1)
+         Filter: (ROW(stars, completed) > ROW(1, 1))
+         Rows Removed by Filter: 34
+         Buffers: shared hit=935
+ Planning:
+   Buffers: shared hit=10
+ Planning Time: 0.037 ms
+ Execution Time: 7.455 ms
+(10 rows)
+
+PARTICIPANTS
+                                                           QUERY PLAN                                                            
+---------------------------------------------------------------------------------------------------------------------------------
+ Aggregate  (cost=2185.00..2185.01 rows=1 width=8) (actual time=5.439..5.440 rows=1 loops=1)
+   Buffers: shared hit=935
+   ->  Seq Scan on leaderboard_profiles  (cost=0.00..1935.00 rows=100000 width=0) (actual time=0.003..3.113 rows=100000 loops=1)
+         Buffers: shared hit=935
+ Planning Time: 0.016 ms
+ Execution Time: 5.444 ms
+(6 rows)
+
+OPEN_ATTEMPTS_BEFORE
+                                                       QUERY PLAN                                                       
+------------------------------------------------------------------------------------------------------------------------
+ Sort  (cost=2849.88..2852.62 rows=1097 width=56) (actual time=5.190..5.211 rows=1000 loops=1)
+   Sort Key: updated_at DESC
+   Sort Method: quicksort  Memory: 71kB
+   Buffers: shared hit=1539
+   ->  Seq Scan on level_attempts  (cost=0.00..2794.49 rows=1097 width=56) (actual time=0.009..5.109 rows=1000 loops=1)
+         Filter: ((NOT closed) AND (user_id = 'c3d9d77e-425a-9fb7-3638-5de07352b2e1'::uuid))
+         Rows Removed by Filter: 99000
+         Buffers: shared hit=1539
+ Planning:
+   Buffers: shared hit=40
+ Planning Time: 0.114 ms
+ Execution Time: 5.241 ms
+(12 rows)
+
+CREATE INDEX
+OPEN_ATTEMPTS_AFTER
+                                                                  QUERY PLAN                                                                  
+----------------------------------------------------------------------------------------------------------------------------------------------
+ Index Scan using audit_open_attempts on level_attempts  (cost=0.28..1479.23 rows=1097 width=56) (actual time=0.009..0.380 rows=1000 loops=1)
+   Index Cond: (user_id = 'c3d9d77e-425a-9fb7-3638-5de07352b2e1'::uuid)
+   Buffers: shared hit=1000 read=6
+ Planning:
+   Buffers: shared hit=4 read=1
+ Planning Time: 0.087 ms
+ Execution Time: 0.406 ms
+(7 rows)
+
+ROLLBACK
